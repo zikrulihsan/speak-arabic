@@ -1,4 +1,5 @@
 
+
 import React, { useState, useRef, useEffect, SetStateAction } from 'react';
 import type { Chat } from '@google/genai';
 import { generateSpeech, startChatSession, getDetailedExplanation, startGeneralChatSession } from '../services/geminiService';
@@ -10,11 +11,11 @@ import { SendIcon, BotIcon } from '../components/icons';
 
 interface ChatPageProps {
     messages: ChatMessage[];
-    setMessages: (value: SetStateAction<ChatMessage[]>) => void;
+    onMessagesUpdate: (updater: (prevMessages: ChatMessage[]) => ChatMessage[]) => void;
     setSavedKeywords: (value: SetStateAction<SavedKeyword[]>) => void;
 }
 
-const ChatPage: React.FC<ChatPageProps> = ({ messages, setMessages, setSavedKeywords }) => {
+const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, setSavedKeywords }) => {
     const [translateSession, setTranslateSession] = useState<Chat | null>(null);
     const [askSession, setAskSession] = useState<Chat | null>(null);
     const [chatMode, setChatMode] = useState<ChatMode>('translate');
@@ -26,28 +27,22 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, setMessages, setSavedKeyw
 
     const audioContextRef = useRef<AudioContext | null>(null);
     const chatHistoryRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
+    // Fix: Replaced incorrect history synchronization with correct chat session initialization on component mount.
+    // The Gemini Chat object's history is private and should be initialized at creation, not mutated.
+    // Since the component is re-keyed when the chat session changes, this useEffect runs once per session and correctly sets up the history.
     useEffect(() => {
-        // Initialize both chat sessions when component mounts
-        setTranslateSession(startChatSession());
-        setAskSession(startGeneralChatSession());
+        const geminiHistory = messages.map(msg => ({
+            role: msg.author === MessageAuthor.USER ? 'user' : 'model',
+            parts: [{ text: typeof msg.content === 'string' 
+                ? msg.content 
+                : JSON.stringify(msg.content) // AI content is always stringified for history
+            }]
+        }));
+        setTranslateSession(startChatSession(geminiHistory));
+        setAskSession(startGeneralChatSession(geminiHistory));
     }, []);
-    
-    useEffect(() => {
-        // Pass message history to the sessions when it changes
-        if (translateSession) {
-            translateSession.history = messages.map(msg => ({
-                role: msg.author === MessageAuthor.USER ? 'user' : 'model',
-                parts: [{ text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) }]
-            }));
-        }
-        if (askSession) {
-             askSession.history = messages.map(msg => ({
-                role: msg.author === MessageAuthor.USER ? 'user' : 'model',
-                parts: [{ text: typeof msg.content === 'string' ? msg.content : (msg.content as AiMessageData).translation }]
-            }));
-        }
-    }, [messages, translateSession, askSession]);
 
     useEffect(() => {
         if (!audioContextRef.current) {
@@ -74,7 +69,8 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, setMessages, setSavedKeyw
         setUserInput('');
         setIsLoading(true);
 
-        setMessages(prevMessages => [...prevMessages, userMessage]);
+        onMessagesUpdate(prev => [...prev, userMessage]);
+
 
         try {
             if (chatMode === 'translate') {
@@ -88,7 +84,8 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, setMessages, setSavedKeyw
 
                 const finalResponseData: AiMessageData = JSON.parse(fullResponseText);
                 const finalAiMessage: ChatMessage = { author: MessageAuthor.AI, content: finalResponseData };
-                setMessages(prevMessages => [...prevMessages, finalAiMessage]);
+                onMessagesUpdate(prev => [...prev, finalAiMessage]);
+
 
                 setSavedKeywords(prevKeywords => {
                     const newKeywords = finalResponseData.keywords.filter(
@@ -103,23 +100,23 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, setMessages, setSavedKeyw
                 let fullResponseText = '';
                 const responseStream = await askSession.sendMessageStream({ message: currentInput });
 
-                // Add a placeholder message
-                const placeholderMessage: ChatMessage = { author: MessageAuthor.AI, content: '' };
-                const aiMessageIndex = messages.length + 1; // Index after user message
-                setMessages(prev => [...prev, placeholderMessage]);
+                // Add a placeholder message for streaming
+                const streamingAiMessage: ChatMessage = { author: MessageAuthor.AI, content: '' };
+                onMessagesUpdate(prev => [...prev, streamingAiMessage]);
 
                 for await (const chunk of responseStream) {
                     fullResponseText += chunk.text;
-                    setMessages(prev => prev.map((msg, index) => 
-                        index === aiMessageIndex ? { ...msg, content: fullResponseText } : msg
-                    ));
+                    onMessagesUpdate(prev => [
+                        ...prev.slice(0, -1),
+                        { ...streamingAiMessage, content: fullResponseText }
+                    ]);
                 }
             }
 
         } catch (error) {
             console.error(error);
             const errorMessage: ChatMessage = { author: MessageAuthor.AI, content: "Maaf, terjadi kesalahan. Silakan coba lagi." };
-            setMessages(prevMessages => [...prevMessages, errorMessage]);
+            onMessagesUpdate(prev => [...prev, errorMessage]);
         } finally {
             setIsLoading(false);
         }
@@ -156,17 +153,96 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, setMessages, setSavedKeyw
         try {
             const detailedExplanation = await getDetailedExplanation(originalUserInput, aiContent.translation);
             const updatedAiContent = { ...aiContent, detailedExplanation };
-            setMessages(prevMessages =>
-                prevMessages.map((msg, idx) =>
-                    idx === messageIndex ? { ...msg, content: updatedAiContent } : msg
-                )
-            );
+            
+            onMessagesUpdate(prev => prev.map((msg, idx) =>
+                idx === messageIndex ? { ...msg, content: updatedAiContent } : msg
+            ));
         } catch (error) {
             console.error("Failed to load details:", error);
         } finally {
             setDetailLoadingIndex(null);
         }
     };
+
+    const handleExampleClick = (text: string) => {
+        setChatMode('translate');
+        setUserInput(text);
+        inputRef.current?.focus();
+    };
+
+    const renderInputForm = ({ maxWidthClass = 'max-w-4xl' }: { maxWidthClass?: string }) => (
+        <div className={`${maxWidthClass} mx-auto w-full`}>
+            {messages.length > 0 && (
+                <div className="flex items-center justify-center gap-2 p-1 bg-slate-800 rounded-lg mb-4">
+                    <button 
+                        onClick={() => setChatMode('translate')}
+                        className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors ${chatMode === 'translate' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}
+                    >
+                        Mode Terjemah
+                    </button>
+                    <button 
+                        onClick={() => setChatMode('ask')}
+                        disabled={messages.length === 0}
+                        className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors ${chatMode === 'ask' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:bg-slate-700'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                        title={messages.length === 0 ? "Kirim pesan pertama untuk mengaktifkan Mode Tanya" : "Beralih ke Mode Tanya"}
+                    >
+                        Mode Tanya
+                    </button>
+                </div>
+            )}
+
+            <form onSubmit={handleSendMessage} className="flex items-center gap-4 bg-slate-800 rounded-xl p-2 pl-5">
+                <input
+                    ref={inputRef}
+                    type="text"
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value)}
+                    placeholder={chatMode === 'translate' ? 'Terjemahkan ke Bahasa Arab...' : 'Tanyakan apa saja...'}
+                    className="flex-1 bg-transparent focus:outline-none text-slate-200 placeholder:text-slate-500"
+                    disabled={isLoading}
+                />
+                <button
+                    type="submit"
+                    disabled={isLoading || !userInput.trim()}
+                    className="p-3 bg-sky-600 rounded-lg hover:bg-sky-700 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Kirim pesan"
+                >
+                    <SendIcon className="w-6 h-6 text-white" />
+                </button>
+            </form>
+        </div>
+    );
+    
+    if (messages.length === 0 && !isLoading) {
+        return (
+            <div className="h-full w-full flex flex-col justify-center items-center p-6">
+                <div className="w-full flex flex-col items-center">
+                     <BotIcon className="w-16 h-16 mx-auto mb-4 text-slate-600" />
+                     <h2 className="text-3xl font-bold text-slate-300 text-center">Penerjemah Arab & Ahli Nahwu</h2>
+                     <p className="mt-4 text-slate-400 max-w-lg text-center">Mulai percakapan baru dengan menerjemahkan kalimat dari Bahasa Indonesia ke Bahasa Arab.</p>
+
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-10 text-left w-full max-w-2xl mx-auto">
+                        <div className="bg-slate-800 p-4 rounded-lg hover:bg-slate-700/50 transition-colors cursor-pointer" onClick={() => handleExampleClick('Saya sedang belajar bahasa Arab sekarang')}>
+                             <h3 className="font-semibold text-slate-400 text-sm">Contoh 1</h3>
+                             <p className="text-slate-200 mt-1">
+                              Saya sedang belajar bahasa Arab sekarang
+                            </p>
+                        </div>
+                        <div className="bg-slate-800 p-4 rounded-lg hover:bg-slate-700/50 transition-colors cursor-pointer" onClick={() => handleExampleClick('Di mana buku saya?')}>
+                            <h3 className="font-semibold text-slate-400 text-sm">Contoh 2</h3>
+                            <p className="text-slate-200 mt-1">
+                              Di mana buku saya?
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div className="w-full mt-10">
+                        {renderInputForm({ maxWidthClass: 'max-w-2xl' })}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="h-full w-full flex flex-col">
@@ -195,53 +271,10 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, setMessages, setSavedKeyw
                         </div>
                     </div>
                 )}
-                {messages.length === 0 && !isLoading && (
-                    <div className="flex h-full items-center justify-center text-center text-slate-500">
-                        <div>
-                            <BotIcon className="w-16 h-16 mx-auto mb-4 text-slate-600" />
-                            <h2 className="text-2xl font-semibold text-slate-400">Selamat Datang!</h2>
-                            <p className="mt-2 max-w-sm">Mulai percakapan dengan mengetik pertanyaan Anda di bawah untuk menerjemahkan dan menganalisis teks Bahasa Arab.</p>
-                        </div>
-                    </div>
-                )}
             </div>
 
             <div className="p-6 bg-slate-900/50 backdrop-blur-sm flex-shrink-0">
-                <div className="max-w-4xl mx-auto">
-                    <div className="flex items-center justify-center gap-2 p-1 bg-slate-800 rounded-lg mb-4">
-                        <button 
-                            onClick={() => setChatMode('translate')}
-                            className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors ${chatMode === 'translate' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}
-                        >
-                            Mode Terjemah
-                        </button>
-                        <button 
-                            onClick={() => setChatMode('ask')}
-                            className={`flex-1 py-2 rounded-md text-sm font-semibold transition-colors ${chatMode === 'ask' ? 'bg-sky-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}
-                        >
-                            Mode Tanya
-                        </button>
-                    </div>
-
-                    <form onSubmit={handleSendMessage} className="flex items-center gap-4 bg-slate-800 rounded-xl p-2 pl-5">
-                        <input
-                            type="text"
-                            value={userInput}
-                            onChange={(e) => setUserInput(e.target.value)}
-                            placeholder={chatMode === 'translate' ? 'Terjemahkan ke Bahasa Arab...' : 'Tanyakan apa saja...'}
-                            className="flex-1 bg-transparent focus:outline-none text-slate-200 placeholder:text-slate-500"
-                            disabled={isLoading}
-                        />
-                        <button
-                            type="submit"
-                            disabled={isLoading || !userInput.trim()}
-                            className="p-3 bg-sky-600 rounded-lg hover:bg-sky-700 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors"
-                            aria-label="Kirim pesan"
-                        >
-                            <SendIcon className="w-6 h-6 text-white" />
-                        </button>
-                    </form>
-                </div>
+                {renderInputForm({})}
             </div>
         </div>
     );

@@ -1,23 +1,79 @@
-import React, { useState } from 'react';
+
+
+import React, { useState, useEffect } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import type { ChatMessage, SavedKeyword } from './types';
+import type { ChatMessage, SavedKeyword, ChatSession } from './types';
 import Sidebar from './components/Sidebar';
 import ChatPage from './pages/ChatPage';
 import KeywordsPage from './pages/KeywordsPage';
-import { MenuIcon } from './components/icons';
+import { MenuIcon, ChatBubbleLeftRightIcon, PlusIcon } from './components/icons';
 
 type View = 'chat' | 'keywords';
 
 function App() {
-  const [messages, setMessages] = useLocalStorage<ChatMessage[]>('chatHistory_single_v1', []);
+  const [chatHistory, setChatHistory] = useLocalStorage<ChatSession[]>('chatHistory_multi_v2', []);
+  const [activeChatId, setActiveChatId] = useLocalStorage<string | null>('activeChatId_v2', null);
   const [savedKeywords, setSavedKeywords] = useLocalStorage<SavedKeyword[]>('savedKeywords_v3', []);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState<View>('chat');
+
+  useEffect(() => {
+    // If there's an active ID but it doesn't correspond to a chat (e.g., chat was deleted), clear it.
+    if (activeChatId && !chatHistory.find(c => c.id === activeChatId)) {
+      setActiveChatId(null);
+    }
+    // If no active chat, but there is history, default to the first one.
+    else if (!activeChatId && chatHistory.length > 0) {
+      setActiveChatId(chatHistory[0].id);
+    }
+  }, [activeChatId, chatHistory, setActiveChatId]);
+
 
   const handleNavigate = (view: View) => {
     setCurrentView(view);
     setIsSidebarOpen(false); // Close sidebar on navigation
   };
+
+  const handleNewChat = () => {
+    const newChat: ChatSession = {
+        id: Date.now().toString(),
+        title: 'Percakapan Baru',
+        messages: [],
+    };
+    setChatHistory(prev => [newChat, ...prev]);
+    setActiveChatId(newChat.id);
+    setCurrentView('chat');
+    setIsSidebarOpen(false);
+  }
+
+  const handleSelectChat = (id: string) => {
+    setActiveChatId(id);
+    setCurrentView('chat');
+    setIsSidebarOpen(false);
+  }
+
+  const handleUpdateMessages = (updater: (prevMessages: ChatMessage[]) => ChatMessage[]) => {
+      if(!activeChatId) return;
+
+      setChatHistory(prevHistory => {
+          return prevHistory.map(session => {
+              if (session.id === activeChatId) {
+                  const oldMessages = session.messages;
+                  const newMessages = updater(oldMessages);
+
+                  // Update title only if it's the first user message
+                  const newTitle = oldMessages.length === 0 && newMessages.length > 0 && typeof newMessages[0].content === 'string'
+                      ? (newMessages[0].content).substring(0, 40) + (newMessages[0].content.length > 40 ? '...' : '')
+                      : session.title;
+                  
+                  return { ...session, messages: newMessages, title: newTitle };
+              }
+              return session;
+          });
+      });
+  };
+
+  const activeChat = chatHistory.find(chat => chat.id === activeChatId);
 
   return (
     <div className="flex h-screen w-screen bg-slate-900 text-white font-sans">
@@ -27,6 +83,10 @@ function App() {
           currentView={currentView}
           onNavigate={handleNavigate}
           onClose={() => {}} // Not used on desktop
+          chatHistory={chatHistory}
+          activeChatId={activeChatId}
+          onNewChat={handleNewChat}
+          onSelectChat={handleSelectChat}
         />
       </div>
       
@@ -40,6 +100,10 @@ function App() {
               currentView={currentView}
               onNavigate={handleNavigate}
               onClose={() => setIsSidebarOpen(false)}
+              chatHistory={chatHistory}
+              activeChatId={activeChatId}
+              onNewChat={handleNewChat}
+              onSelectChat={handleSelectChat}
             />
         </div>
       </div>
@@ -50,18 +114,37 @@ function App() {
               <MenuIcon className="w-6 h-6" />
           </button>
           <h1 className="text-lg font-semibold truncate">
-            {currentView === 'chat' ? 'Percakapan' : 'Daftar Kata Kunci'}
+            {currentView === 'chat' 
+                ? activeChat?.title || 'Percakapan'
+                : 'Daftar Kata Kunci'}
           </h1>
           <div className="w-6 lg:hidden"></div> {/* Spacer for mobile to balance the menu icon */}
         </header>
 
         <div className="flex-1 overflow-y-auto">
-          {currentView === 'chat' && (
+          {currentView === 'chat' && activeChat && (
             <ChatPage
-              messages={messages}
-              setMessages={setMessages}
+              key={activeChatId} // Remounts component on chat change, simplifying state
+              messages={activeChat.messages}
+              onMessagesUpdate={handleUpdateMessages}
               setSavedKeywords={setSavedKeywords}
             />
+          )}
+          {currentView === 'chat' && !activeChat && (
+            <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center">
+                <ChatBubbleLeftRightIcon className="w-20 h-20 text-slate-700 mb-4"/>
+                <h2 className="text-2xl font-bold text-slate-300">Selamat Datang di Ahli Nahwu</h2>
+                <p className="mt-2 max-w-sm text-slate-400">
+                    Pilih percakapan dari panel samping, atau mulai percakapan baru untuk menerjemahkan dan menganalisis teks Arab.
+                </p>
+                <button 
+                    onClick={handleNewChat} 
+                    className="mt-6 flex items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-sky-700"
+                >
+                    <PlusIcon className="w-5 h-5" />
+                    <span>Percakapan Baru</span>
+                </button>
+            </div>
           )}
           {currentView === 'keywords' && (
             <KeywordsPage

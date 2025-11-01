@@ -34,3 +34,9 @@ export interface ChatMessage {
   author: MessageAuthor;
   content: string | AiMessageData;
 }
+
+export interface ChatSession {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+}

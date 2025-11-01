@@ -71,9 +71,11 @@ const responseSchema = {
 };
 
 
-export function startChatSession(): Chat {
+// Fix: Modified startChatSession to accept an optional history parameter to correctly initialize the chat session.
+export function startChatSession(history?: any[]): Chat {
   return ai.chats.create({
     model: chatModel,
+    history: history,
     config: {
       systemInstruction: chatSystemInstruction,
       responseMimeType: "application/json",
@@ -84,9 +86,11 @@ export function startChatSession(): Chat {
 
 const generalChatSystemInstruction = `Anda adalah asisten ahli yang berspesialisasi dalam bahasa Arab, Nahwu, dan Sharaf. Jawab pertanyaan pengguna secara informatif dan jelas. Gunakan format Markdown jika diperlukan untuk menyajikan informasi dengan baik (misalnya, daftar, teks tebal). Anda melanjutkan percakapan yang mungkin dimulai dengan terjemahan. Konteks dari pesan sebelumnya sangat penting.`;
 
-export function startGeneralChatSession(): Chat {
+// Fix: Modified startGeneralChatSession to accept an optional history parameter to correctly initialize the chat session.
+export function startGeneralChatSession(history?: any[]): Chat {
   return ai.chats.create({
     model: chatModel,
+    history: history,
     config: {
       systemInstruction: generalChatSystemInstruction,
     },
