@@ -1,7 +1,6 @@
-import { useState, useEffect, SetStateAction } from 'react';
+import { useState, useEffect, SetStateAction, Dispatch } from 'react';
 
-// FIX: Remove leftover comment from a previous fix.
-export function useLocalStorage<T,>(key: string, initialValue: T): [T, (value: SetStateAction<T>) => void] {
+export function useLocalStorage<T,>(key: string, initialValue: T): [T, Dispatch<SetStateAction<T>>] {
   const [storedValue, setStoredValue] = useState<T>(() => {
     if (typeof window === 'undefined') {
       return initialValue;
@@ -15,28 +14,15 @@ export function useLocalStorage<T,>(key: string, initialValue: T): [T, (value: S
     }
   });
 
-  const setValue = (value: SetStateAction<T>) => {
-    try {
-      const valueToStore = value instanceof Function ? value(storedValue) : value;
-      setStoredValue(valueToStore);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(key, JSON.stringify(valueToStore));
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
-  
   useEffect(() => {
     try {
-      const item = window.localStorage.getItem(key);
-      if (item) {
-        setStoredValue(JSON.parse(item));
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(key, JSON.stringify(storedValue));
       }
     } catch (error) {
       console.error(error);
     }
-  }, [key]);
+  }, [key, storedValue]);
 
-  return [storedValue, setValue];
+  return [storedValue, setStoredValue];
 }
