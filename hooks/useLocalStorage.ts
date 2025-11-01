@@ -1,3 +1,4 @@
+
 import { useState, useEffect, SetStateAction, Dispatch } from 'react';
 
 export function useLocalStorage<T,>(key: string, initialValue: T): [T, Dispatch<SetStateAction<T>>] {

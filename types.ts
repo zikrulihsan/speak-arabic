@@ -13,24 +13,37 @@ export interface ArabicWithTranslit {
 
 export interface SavedKeyword {
   indonesian: string;
-  arabic: ArabicWithTranslit;
+  translation: ArabicWithTranslit;
+  // Fix: Use an escaped single quote for "fi'il" to create a valid string literal type.
+  type: 'fi\'il' | 'isim' | 'lainnya';
   root?: ArabicWithTranslit;
-  madhi?: ArabicWithTranslit;
-  mudhari?: ArabicWithTranslit;
-  amr?: ArabicWithTranslit;
-  singular?: ArabicWithTranslit;
-  plural?: ArabicWithTranslit;
+  verbForms?: {
+    madhi: ArabicWithTranslit;
+    mudhari: ArabicWithTranslit;
+    amr: ArabicWithTranslit;
+  };
+  nounForms?: {
+    singular: ArabicWithTranslit;
+    plural: ArabicWithTranslit;
+  };
 }
+
 
 export interface AiMessageData {
-  translation: string;
-  transliteration: string;
-  briefExplanation: string;
-  keywords: SavedKeyword[];
-  detailedExplanation?: string; // Optional: To be loaded on demand
+  arabic: string;
+  translit: string;
+  explanation: {
+    arabic: string;
+    translit: string;
+    indonesian: string;
+  }[];
+  keywords?: SavedKeyword[];
+  keywordsLoading?: boolean;
 }
 
+
 export interface ChatMessage {
+  id: string;
   author: MessageAuthor;
   content: string | AiMessageData;
 }

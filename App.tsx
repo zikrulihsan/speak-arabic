@@ -1,38 +1,29 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import type { ChatMessage, SavedKeyword, ChatSession } from './types';
+import type { ChatMessage, ChatSession, SavedKeyword } from './types';
 import Sidebar from './components/Sidebar';
 import ChatPage from './pages/ChatPage';
 import KeywordsPage from './pages/KeywordsPage';
-import { MenuIcon, ChatBubbleLeftRightIcon, PlusIcon } from './components/icons';
+// Fix: Import the missing ChatBubbleLeftRightIcon component.
+import { MenuIcon, PlusIcon, ChatBubbleLeftRightIcon } from './components/icons';
 
 type View = 'chat' | 'keywords';
 
 function App() {
-  const [chatHistory, setChatHistory] = useLocalStorage<ChatSession[]>('chatHistory_multi_v2', []);
-  const [activeChatId, setActiveChatId] = useLocalStorage<string | null>('activeChatId_v2', null);
+  const [chatHistory, setChatHistory] = useLocalStorage<ChatSession[]>('chatHistory_multi_v3', []);
+  const [activeChatId, setActiveChatId] = useLocalStorage<string | null>('activeChatId_v3', null);
   const [savedKeywords, setSavedKeywords] = useLocalStorage<SavedKeyword[]>('savedKeywords_v3', []);
+  
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState<View>('chat');
 
   useEffect(() => {
-    // If there's an active ID but it doesn't correspond to a chat (e.g., chat was deleted), clear it.
     if (activeChatId && !chatHistory.find(c => c.id === activeChatId)) {
       setActiveChatId(null);
     }
-    // If no active chat, but there is history, default to the first one.
-    else if (!activeChatId && chatHistory.length > 0) {
-      setActiveChatId(chatHistory[0].id);
-    }
   }, [activeChatId, chatHistory, setActiveChatId]);
 
-
-  const handleNavigate = (view: View) => {
-    setCurrentView(view);
-    setIsSidebarOpen(false); // Close sidebar on navigation
-  };
 
   const handleNewChat = () => {
     const newChat: ChatSession = {
@@ -61,9 +52,9 @@ function App() {
                   const oldMessages = session.messages;
                   const newMessages = updater(oldMessages);
 
-                  // Update title only if it's the first user message
-                  const newTitle = oldMessages.length === 0 && newMessages.length > 0 && typeof newMessages[0].content === 'string'
-                      ? (newMessages[0].content).substring(0, 40) + (newMessages[0].content.length > 40 ? '...' : '')
+                  const firstUserMessage = newMessages.find(m => m.author === 'user');
+                  const newTitle = oldMessages.length === 0 && newMessages.length > 0 && firstUserMessage
+                      ? (firstUserMessage.content as string).substring(0, 40) + ((firstUserMessage.content as string).length > 40 ? '...' : '')
                       : session.title;
                   
                   return { ...session, messages: newMessages, title: newTitle };
@@ -73,16 +64,38 @@ function App() {
       });
   };
 
+  const handleNewKeywords = (newKeywords: SavedKeyword[]) => {
+    setSavedKeywords(prevKeywords => {
+      const existingKeywords = new Set(prevKeywords.map(k => k.indonesian.toLowerCase()));
+      const uniqueNewKeywords = newKeywords.filter(
+        k => !existingKeywords.has(k.indonesian.toLowerCase())
+      );
+      return [...prevKeywords, ...uniqueNewKeywords];
+    });
+  };
+
+  const handleClearKeywords = () => {
+    setSavedKeywords([]);
+  };
+  
+  const handleNavigate = (view: View) => {
+    setCurrentView(view);
+    setIsSidebarOpen(false);
+  }
+
   const activeChat = chatHistory.find(chat => chat.id === activeChatId);
+  const getPageTitle = () => {
+    if (currentView === 'keywords') return 'Daftar Kata Kunci';
+    return activeChat?.title || 'Percakapan';
+  }
 
   return (
     <div className="flex h-screen w-screen bg-slate-900 text-white font-sans">
-      {/* Sidebar for Desktop */}
       <div className="hidden lg:block lg:w-72 flex-shrink-0 border-r border-slate-700/50">
         <Sidebar 
+          onClose={() => {}} 
           currentView={currentView}
           onNavigate={handleNavigate}
-          onClose={() => {}} // Not used on desktop
           chatHistory={chatHistory}
           activeChatId={activeChatId}
           onNewChat={handleNewChat}
@@ -90,16 +103,15 @@ function App() {
         />
       </div>
       
-      {/* Sidebar for Mobile (Overlay) */}
       <div 
         className={`fixed inset-0 z-30 transition-transform transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:hidden`}
       >
         <div className="absolute inset-0 bg-black/60" onClick={() => setIsSidebarOpen(false)}></div>
         <div className="relative w-[90%] max-w-xs h-full">
             <Sidebar 
+              onClose={() => setIsSidebarOpen(false)}
               currentView={currentView}
               onNavigate={handleNavigate}
-              onClose={() => setIsSidebarOpen(false)}
               chatHistory={chatHistory}
               activeChatId={activeChatId}
               onNewChat={handleNewChat}
@@ -114,44 +126,47 @@ function App() {
               <MenuIcon className="w-6 h-6" />
           </button>
           <h1 className="text-lg font-semibold truncate">
-            {currentView === 'chat' 
-                ? activeChat?.title || 'Percakapan'
-                : 'Daftar Kata Kunci'}
+            {getPageTitle()}
           </h1>
-          <div className="w-6 lg:hidden"></div> {/* Spacer for mobile to balance the menu icon */}
+          <div className="w-6 lg:hidden"></div>
         </header>
 
         <div className="flex-1 overflow-y-auto">
-          {currentView === 'chat' && activeChat && (
-            <ChatPage
-              key={activeChatId} // Remounts component on chat change, simplifying state
-              messages={activeChat.messages}
-              onMessagesUpdate={handleUpdateMessages}
-              setSavedKeywords={setSavedKeywords}
-            />
+          {currentView === 'chat' && (
+            <>
+              {activeChat ? (
+                <ChatPage
+                  key={activeChatId}
+                  messages={activeChat.messages}
+                  onMessagesUpdate={handleUpdateMessages}
+                  onNewKeywords={handleNewKeywords}
+                />
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center">
+                    <ChatBubbleLeftRightIcon className="w-20 h-20 text-slate-700 mb-4"/>
+                    <h2 className="text-2xl font-bold text-slate-300">Selamat Datang di Ahli Nahwu</h2>
+                    <p className="mt-2 max-w-sm text-slate-400">
+                        Pilih percakapan dari panel samping, atau mulai percakapan baru untuk menerjemahkan dan menganalisis teks Arab.
+                    </p>
+                    <button 
+                        onClick={handleNewChat} 
+                        className="mt-6 flex items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-sky-700"
+                    >
+                        <PlusIcon className="w-5 h-5" />
+                        <span>Percakapan Baru</span>
+                    </button>
+                </div>
+              )}
+            </>
           )}
-          {currentView === 'chat' && !activeChat && (
-            <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center">
-                <ChatBubbleLeftRightIcon className="w-20 h-20 text-slate-700 mb-4"/>
-                <h2 className="text-2xl font-bold text-slate-300">Selamat Datang di Ahli Nahwu</h2>
-                <p className="mt-2 max-w-sm text-slate-400">
-                    Pilih percakapan dari panel samping, atau mulai percakapan baru untuk menerjemahkan dan menganalisis teks Arab.
-                </p>
-                <button 
-                    onClick={handleNewChat} 
-                    className="mt-6 flex items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-sky-700"
-                >
-                    <PlusIcon className="w-5 h-5" />
-                    <span>Percakapan Baru</span>
-                </button>
-            </div>
-          )}
+
           {currentView === 'keywords' && (
-            <KeywordsPage
+            <KeywordsPage 
               keywords={savedKeywords}
-              onClear={() => setSavedKeywords([])}
+              onClearKeywords={handleClearKeywords}
             />
           )}
+
         </div>
       </main>
     </div>
