@@ -1,10 +1,32 @@
 import { GoogleGenAI, Chat, GenerateContentResponse, Modality, Type } from "@google/genai";
 
-if (!process.env.API_KEY) {
-  throw new Error("API_KEY environment variable is not set.");
+let ai: GoogleGenAI;
+let currentApiKey: string | null = process.env.API_KEY || null;
+
+export function initializeAI(apiKey?: string) {
+  if (apiKey) {
+    currentApiKey = apiKey;
+  }
+
+  if (!currentApiKey) {
+    throw new Error("API_KEY is not set. Please provide a Gemini API key.");
+  }
+
+  ai = new GoogleGenAI({ apiKey: currentApiKey });
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+export function isAIInitialized(): boolean {
+  return currentApiKey !== null;
+}
+
+export function getStoredApiKey(): string | null {
+  return currentApiKey;
+}
+
+// Initialize AI with environment variable if available
+if (currentApiKey) {
+  initializeAI();
+}
 
 const chatModel = 'gemini-2.5-flash';
 const ttsModel = 'gemini-2.5-flash-preview-tts';
@@ -44,6 +66,9 @@ const fastTranslationSchema = {
 const fastTranslationSystemInstruction = `Anda adalah penerjemah ahli Bahasa Indonesia ke Bahasa Arab. Tugas Anda adalah menerjemahkan kalimat dan memberikan penjelasan per kata. Anda HARUS mengembalikan respons dalam format JSON yang terstruktur. Jangan sertakan analisis kata kunci yang mendalam, fokus hanya pada terjemahan dan penjelasan langsung.`;
 
 export function startFastTranslationSession(history?: any[]): Chat {
+  if (!ai) {
+    throw new Error("AI not initialized. Please provide an API key.");
+  }
   return ai.chats.create({
     model: chatModel,
     history: history?.map(msg => ({
@@ -106,6 +131,9 @@ Anda HARUS mengembalikan respons dalam format JSON yang HANYA berisi objek \`key
 
 export async function extractKeywords(text: string) {
     try {
+        if (!ai) {
+            throw new Error("AI not initialized. Please provide an API key.");
+        }
         const response = await ai.models.generateContent({
             model: chatModel,
             contents: [{ parts: [{ text }] }],
@@ -128,6 +156,9 @@ export async function extractKeywords(text: string) {
 const generalChatSystemInstruction = `Anda adalah asisten ahli yang berspesialisasi dalam bahasa Arab, Nahwu, dan Sharaf. Jawab pertanyaan pengguna secara informatif dan jelas. Gunakan format Markdown jika diperlukan untuk menyajikan informasi dengan baik (misalnya, daftar, teks tebal). Anda melanjutkan percakapan yang mungkin dimulai dengan terjemahan. Konteks dari pesan sebelumnya sangat penting.`;
 
 export function startGeneralChatSession(history?: any[]): Chat {
+  if (!ai) {
+    throw new Error("AI not initialized. Please provide an API key.");
+  }
   return ai.chats.create({
     model: chatModel,
     history: history?.map(msg => ({
@@ -143,6 +174,9 @@ export function startGeneralChatSession(history?: any[]): Chat {
 // --- Layanan TTS ---
 export async function generateSpeech(text: string): Promise<string | null> {
     try {
+        if (!ai) {
+            throw new Error("AI not initialized. Please provide an API key.");
+        }
         const response = await ai.models.generateContent({
             model: ttsModel,
             contents: [{ parts: [{ text }] }],
@@ -155,7 +189,7 @@ export async function generateSpeech(text: string): Promise<string | null> {
                 },
             },
         });
-        
+
         const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
         return base64Audio || null;
     } catch (error) {
@@ -169,6 +203,9 @@ export async function explainGrammarConcept(concept: string, word: { arabic: str
     const prompt = `Jelaskan secara SANGAT SINGKAT (1-2 kalimat) perubahan tata bahasa pada kata "${word.arabic} (${word.translit})" dalam konteks "${concept}". Contoh: Jika kata adalah 'أَكَلْتُ', jelaskan mengapa diakhiri dengan 'تُ' (artinya 'saya'). Jika kata adalah 'زَوْجَتِي', jelaskan mengapa diakhiri dengan 'ي' (artinya 'milikku'). Langsung ke intinya tanpa pengenalan umum. Gunakan format Markdown.`;
 
     try {
+        if (!ai) {
+            throw new Error("AI not initialized. Please provide an API key.");
+        }
         const response = await ai.models.generateContent({
             model: chatModel,
             contents: [{ parts: [{ text: prompt }] }],

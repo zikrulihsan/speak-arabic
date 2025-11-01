@@ -7,6 +7,7 @@ import ChatPage from './pages/ChatPage';
 import KeywordsPage from './pages/KeywordsPage';
 // Fix: Import the missing ChatBubbleLeftRightIcon component.
 import { MenuIcon, PlusIcon, ChatBubbleLeftRightIcon } from './components/icons';
+import { initializeAI, getStoredApiKey } from './services/geminiService';
 
 type View = 'chat' | 'keywords';
 
@@ -14,9 +15,25 @@ function App() {
   const [chatHistory, setChatHistory] = useLocalStorage<ChatSession[]>('chatHistory_multi_v3', []);
   const [activeChatId, setActiveChatId] = useLocalStorage<string | null>('activeChatId_v3', null);
   const [savedKeywords, setSavedKeywords] = useLocalStorage<SavedKeyword[]>('savedKeywords_v3', []);
-  
+  const [apiKey, setApiKey] = useLocalStorage<string>('gemini_api_key', '');
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentView, setCurrentView] = useState<View>('chat');
+
+  // Prioritize env variable API key, fallback to user-provided key
+  const envApiKey = process.env.API_KEY;
+  const effectiveApiKey = envApiKey || apiKey;
+  const isUsingEnvKey = !!envApiKey;
+
+  useEffect(() => {
+    if (effectiveApiKey) {
+      try {
+        initializeAI(effectiveApiKey);
+      } catch (error) {
+        console.error('Failed to initialize AI:', error);
+      }
+    }
+  }, [effectiveApiKey]);
 
   useEffect(() => {
     if (activeChatId && !chatHistory.find(c => c.id === activeChatId)) {
@@ -140,6 +157,9 @@ function App() {
                   messages={activeChat.messages}
                   onMessagesUpdate={handleUpdateMessages}
                   onNewKeywords={handleNewKeywords}
+                  apiKey={effectiveApiKey}
+                  onApiKeyChange={setApiKey}
+                  isUsingEnvKey={isUsingEnvKey}
                 />
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center">

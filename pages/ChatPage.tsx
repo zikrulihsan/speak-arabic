@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import type { Chat } from '@google/genai';
-import { startFastTranslationSession, extractKeywords, startGeneralChatSession } from '../services/geminiService';
+import { startFastTranslationSession, extractKeywords, startGeneralChatSession, initializeAI } from '../services/geminiService';
 import type { ChatMessage, ChatMode, SavedKeyword, AiMessageData } from '../types';
 import { MessageAuthor } from '../types';
 import ChatMessageComponent from '../components/ChatMessage';
@@ -11,28 +11,38 @@ interface ChatPageProps {
     messages: ChatMessage[];
     onMessagesUpdate: (updater: (prevMessages: ChatMessage[]) => ChatMessage[]) => void;
     onNewKeywords: (keywords: SavedKeyword[]) => void;
+    apiKey: string;
+    onApiKeyChange: (key: string) => void;
+    isUsingEnvKey: boolean;
 }
 
-const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKeywords }) => {
+const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKeywords, apiKey, onApiKeyChange, isUsingEnvKey }) => {
     const [translateSession, setTranslateSession] = useState<Chat | null>(null);
     const [askSession, setAskSession] = useState<Chat | null>(null);
     const [chatMode, setChatMode] = useState<ChatMode>('translate');
-    
+
     const [userInput, setUserInput] = useState<string>('');
     const [isLoading, setIsLoading] = useState<boolean>(false);
-    
+    const [tempApiKey, setTempApiKey] = useState<string>('');
+
     const chatHistoryRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        const geminiHistory = messages.map(msg => ({
-            role: msg.author === MessageAuthor.USER ? 'user' : 'model',
-            parts: [{ text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) }]
-        }));
-        // Note: For fast translation, we don't need persistent history in the session object itself,
-        // as we manage history in our own state. New sessions can be created for each message.
-        setAskSession(startGeneralChatSession(geminiHistory));
-    }, [messages]);
+        if (!apiKey) return; // Don't initialize session if no API key
+
+        try {
+            const geminiHistory = messages.map(msg => ({
+                role: msg.author === MessageAuthor.USER ? 'user' : 'model',
+                parts: [{ text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) }]
+            }));
+            // Note: For fast translation, we don't need persistent history in the session object itself,
+            // as we manage history in our own state. New sessions can be created for each message.
+            setAskSession(startGeneralChatSession(geminiHistory));
+        } catch (error) {
+            console.error("Failed to initialize chat session:", error);
+        }
+    }, [messages, apiKey]);
 
     useEffect(() => {
         if (chatHistoryRef.current) {
@@ -125,6 +135,18 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
         inputRef.current?.focus();
     };
 
+    const handleSaveApiKey = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (tempApiKey.trim()) {
+            try {
+                initializeAI(tempApiKey.trim());
+                onApiKeyChange(tempApiKey.trim());
+            } catch (error) {
+                alert('Gagal menginisialisasi API key. Pastikan API key valid.');
+            }
+        }
+    };
+
     const renderInputForm = ({ maxWidthClass = 'max-w-4xl' }: { maxWidthClass?: string }) => (
         <div className={`${maxWidthClass} mx-auto w-full`}>
             {messages.length > 0 && (
@@ -176,24 +198,70 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
                      <h2 className="text-3xl font-bold text-slate-300 text-center">Penerjemah Arab & Ahli Nahwu</h2>
                      <p className="mt-4 text-slate-400 max-w-lg text-center">Mulai percakapan baru dengan menerjemahkan kalimat dari Bahasa Indonesia ke Bahasa Arab.</p>
 
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-10 text-left w-full max-w-2xl mx-auto">
-                        <div className="bg-slate-800 p-4 rounded-lg hover:bg-slate-700/50 transition-colors cursor-pointer" onClick={() => handleExampleClick('Saya sedang belajar bahasa Arab sekarang')}>
-                             <h3 className="font-semibold text-slate-400 text-sm">Contoh 1</h3>
-                             <p className="text-slate-200 mt-1">
-                              Saya sedang belajar bahasa Arab sekarang
-                            </p>
+                     {!apiKey && !isUsingEnvKey ? (
+                        <div className="w-full max-w-2xl mx-auto mt-10">
+                            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+                                <h3 className="text-lg font-semibold text-slate-200 mb-3">Masukkan Gemini API Key</h3>
+                                <p className="text-sm text-slate-400 mb-4">
+                                    Untuk menggunakan aplikasi ini, Anda memerlukan API Key dari Google AI Studio.
+                                </p>
+
+                                <div className="bg-slate-900 border border-slate-700 rounded-md p-4 mb-4 text-sm text-slate-300">
+                                    <p className="font-semibold text-sky-400 mb-2">Cara mendapatkan Gemini API Key:</p>
+                                    <ol className="list-decimal list-inside space-y-1 text-slate-400">
+                                        <li>Kunjungi <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-sky-400 hover:underline">Google AI Studio</a></li>
+                                        <li>Login dengan akun Google Anda</li>
+                                        <li>Klik tombol "Create API Key"</li>
+                                        <li>Pilih project atau buat project baru</li>
+                                        <li>Salin API Key yang dihasilkan</li>
+                                        <li>Tempelkan API Key di kolom di bawah</li>
+                                    </ol>
+                                </div>
+
+                                <form onSubmit={handleSaveApiKey} className="space-y-3">
+                                    <input
+                                        type="password"
+                                        value={tempApiKey}
+                                        onChange={(e) => setTempApiKey(e.target.value)}
+                                        placeholder="Masukkan Gemini API Key Anda..."
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-3 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-sky-500"
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={!tempApiKey.trim()}
+                                        className="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-colors"
+                                    >
+                                        Simpan dan Mulai
+                                    </button>
+                                </form>
+
+                                <p className="text-xs text-slate-500 mt-3">
+                                    API Key Anda akan disimpan secara lokal di browser Anda dan tidak akan dikirim ke server manapun.
+                                </p>
+                            </div>
                         </div>
-                        <div className="bg-slate-800 p-4 rounded-lg hover:bg-slate-700/50 transition-colors cursor-pointer" onClick={() => handleExampleClick('Di mana buku saya?')}>
-                            <h3 className="font-semibold text-slate-400 text-sm">Contoh 2</h3>
-                            <p className="text-slate-200 mt-1">
-                              Di mana buku saya?
-                            </p>
-                        </div>
-                    </div>
-                    
-                    <div className="w-full mt-10">
-                        {renderInputForm({ maxWidthClass: 'max-w-2xl' })}
-                    </div>
+                     ) : (
+                        <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-10 text-left w-full max-w-2xl mx-auto">
+                                <div className="bg-slate-800 p-4 rounded-lg hover:bg-slate-700/50 transition-colors cursor-pointer" onClick={() => handleExampleClick('Saya sedang belajar bahasa Arab sekarang')}>
+                                    <h3 className="font-semibold text-slate-400 text-sm">Contoh 1</h3>
+                                    <p className="text-slate-200 mt-1">
+                                    Saya sedang belajar bahasa Arab sekarang
+                                    </p>
+                                </div>
+                                <div className="bg-slate-800 p-4 rounded-lg hover:bg-slate-700/50 transition-colors cursor-pointer" onClick={() => handleExampleClick('Di mana buku saya?')}>
+                                    <h3 className="font-semibold text-slate-400 text-sm">Contoh 2</h3>
+                                    <p className="text-slate-200 mt-1">
+                                    Di mana buku saya?
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="w-full mt-10">
+                                {renderInputForm({ maxWidthClass: 'max-w-2xl' })}
+                            </div>
+                        </>
+                     )}
                 </div>
             </div>
         );
@@ -213,7 +281,16 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
                     <div className="flex items-start gap-4">
                         <BotIcon className="w-8 h-8 flex-shrink-0 text-sky-400 mt-1 animate-pulse" />
                         <div className="max-w-2xl px-5 py-4 rounded-2xl bg-slate-700">
-                           <p className="text-sm text-slate-400">Mendapatkan terjemahan...</p>
+                           <p className="text-sm text-slate-400 animate-pulse">
+                               <span className="inline-block animate-[fadeInOut_1.5s_ease-in-out_infinite]">Mendapatkan</span>
+                               {' '}
+                               <span className="inline-block animate-[fadeInOut_1.5s_ease-in-out_infinite]" style={{animationDelay: '0.2s'}}>terjemahan</span>
+                               <span className="inline-flex">
+                                   <span className="animate-[ellipsis_1.4s_infinite] opacity-0" style={{animationDelay: '0s'}}>.</span>
+                                   <span className="animate-[ellipsis_1.4s_infinite] opacity-0" style={{animationDelay: '0.2s'}}>.</span>
+                                   <span className="animate-[ellipsis_1.4s_infinite] opacity-0" style={{animationDelay: '0.4s'}}>.</span>
+                               </span>
+                           </p>
                         </div>
                     </div>
                 )}
