@@ -195,7 +195,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
             <div className="h-full w-full flex flex-col justify-center items-center p-6">
                 <div className="w-full flex flex-col items-center">
                      <BotIcon className="w-16 h-16 mx-auto mb-4 text-slate-600" />
-                     <h2 className="text-3xl font-bold text-slate-300 text-center">Penerjemah Arab & Ahli Nahwu</h2>
+                     <h2 className="text-3xl font-bold text-slate-300 text-center">Penerjemah Arab - Speaking Arabic</h2>
                      <p className="mt-4 text-slate-400 max-w-lg text-center">Mulai percakapan baru dengan menerjemahkan kalimat dari Bahasa Indonesia ke Bahasa Arab.</p>
 
                      {!apiKey && !isUsingEnvKey ? (

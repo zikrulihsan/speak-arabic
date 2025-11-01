@@ -1,5 +1,5 @@
 {
-  "name": "Penerjemah Arab & Ahli Nahwu",
+  "name": "Belajar Komunikasi Bahasa Arab",
   "description": "Aplikasi chatbot untuk menerjemahkan teks dari Bahasa Indonesia ke Bahasa Arab, memberikan penjelasan kaidah tata bahasa (nahwu/sharaf), mengekstrak kata kunci, dan menyediakan fitur Text-to-Speech (TTS) untuk pengucapan.",
   "requestFramePermissions": []
 }

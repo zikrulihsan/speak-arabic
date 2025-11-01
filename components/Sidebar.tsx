@@ -46,7 +46,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onClose, currentView, onNavigate, cha
   return (
     <div className="bg-slate-900/80 backdrop-blur-md h-full flex flex-col p-2 gap-2">
       <header className="flex items-center justify-between p-2 pb-3">
-        <h1 className="text-xl font-bold text-white">Ahli Nahwu</h1>
+        <h1 className="text-xl font-bold text-white">Speaking Arabic</h1>
         <button onClick={onClose} className="lg:hidden p-1 text-slate-400 hover:text-white">
           <CloseIcon className="w-6 h-6" />
         </button>

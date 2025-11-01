@@ -164,7 +164,7 @@ function App() {
               ) : (
                 <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center">
                     <ChatBubbleLeftRightIcon className="w-20 h-20 text-slate-700 mb-4"/>
-                    <h2 className="text-2xl font-bold text-slate-300">Selamat Datang di Ahli Nahwu</h2>
+                    <h2 className="text-2xl font-bold text-slate-300">Selamat Datang di Speaking Arabic</h2>
                     <p className="mt-2 max-w-sm text-slate-400">
                         Pilih percakapan dari panel samping, atau mulai percakapan baru untuk menerjemahkan dan menganalisis teks Arab.
                     </p>
