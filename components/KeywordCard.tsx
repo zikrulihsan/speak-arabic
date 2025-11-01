@@ -16,29 +16,37 @@ const KeywordCard: React.FC<KeywordCardProps> = ({ keyword }) => {
   const [hasError, setHasError] = useState(false);
 
   const handleToggleExpand = async () => {
-    console.log("masuk sini", isExpanded)
-    if (!isExpanded) {
-      // Expanding - generate explanation if not already loaded
-      if (!explanation && !loadingExplanation && !hasError) {
-        setLoadingExplanation(true);
-        setHasError(false);
-        try {
-          // Generate detailed explanation using Gemini
-          const result = await explainKeywordDetail(
-            keyword.indonesian,
-            keyword.translation.arabic,
-            keyword.translation.translit
-          );
-          setExplanation(result);
-        } catch (error) {
-          console.error('Error generating keyword explanation:', error);
-          setHasError(true);
-        } finally {
-          setLoadingExplanation(false);
-        }
-      }
+    // If collapsing, just collapse immediately
+    if (isExpanded) {
+      setIsExpanded(false);
+      return;
     }
-    setIsExpanded(!isExpanded);
+
+    // If expanding and explanation already loaded, just expand
+    if (explanation || loadingExplanation) {
+      setIsExpanded(true);
+      return;
+    }
+
+    // If expanding and need to load explanation
+    setIsExpanded(true);
+    setLoadingExplanation(true);
+    setHasError(false);
+
+    try {
+      // Generate detailed explanation using Gemini
+      const result = await explainKeywordDetail(
+        keyword.indonesian,
+        keyword.translation.arabic,
+        keyword.translation.translit
+      );
+      setExplanation(result);
+    } catch (error) {
+      console.error('Error generating keyword explanation:', error);
+      setHasError(true);
+    } finally {
+      setLoadingExplanation(false);
+    }
   };
 
   const handleRetry = async () => {
@@ -47,8 +55,8 @@ const KeywordCard: React.FC<KeywordCardProps> = ({ keyword }) => {
     try {
       const result = await explainKeywordDetail(
         keyword.indonesian,
-        keyword.translation.arabic,
-        keyword.translation.translit
+        keyword.arabic,
+        keyword.translit
       );
       setExplanation(result);
     } catch (error) {

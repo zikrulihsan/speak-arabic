@@ -5,7 +5,8 @@ import { startFastTranslationSession, extractKeywords, startGeneralChatSession, 
 import type { ChatMessage, ChatMode, SavedKeyword, AiMessageData } from '../types';
 import { MessageAuthor } from '../types';
 import ChatMessageComponent from '../components/ChatMessage';
-import { SendIcon, BotIcon, ExclamationTriangleIcon } from '../components/icons';
+import { SendIcon, BotIcon, ExclamationTriangleIcon, MicrophoneIcon, StopIcon } from '../components/icons';
+import { generateUniqueId } from '../utils/idGenerator';
 
 interface ChatPageProps {
     messages: ChatMessage[];
@@ -25,24 +26,28 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [tempApiKey, setTempApiKey] = useState<string>('');
 
+    // Voice recording state
+    const [isRecording, setIsRecording] = useState<boolean>(false);
+
     const chatHistoryRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const recognitionRef = useRef<any>(null);
 
-    useEffect(() => {
-        if (!apiKey) return; // Don't initialize session if no API key
+    // useEffect(() => {
+    //     if (!apiKey) return; // Don't initialize session if no API key
 
-        try {
-            const geminiHistory = messages.map(msg => ({
-                role: msg.author === MessageAuthor.USER ? 'user' : 'model',
-                parts: [{ text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) }]
-            }));
-            // Note: For fast translation, we don't need persistent history in the session object itself,
-            // as we manage history in our own state. New sessions can be created for each message.
-            setAskSession(startGeneralChatSession(geminiHistory));
-        } catch (error) {
-            console.error("Failed to initialize chat session:", error);
-        }
-    }, [messages, apiKey]);
+    //     try {
+    //         const geminiHistory = messages.map(msg => ({
+    //             role: msg.author === MessageAuthor.USER ? 'user' : 'model',
+    //             parts: [{ text: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) }]
+    //         }));
+    //         // Note: For fast translation, we don't need persistent history in the session object itself,
+    //         // as we manage history in our own state. New sessions can be created for each message.
+    //         setAskSession(startGeneralChatSession(geminiHistory));
+    //     } catch (error) {
+    //         console.error("Failed to initialize chat session:", error);
+    //     }
+    // }, [apiKey]);
 
     useEffect(() => {
         if (chatHistoryRef.current) {
@@ -50,11 +55,24 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
         }
     }, [messages]);
 
+    // Cleanup effect for voice recording
+    useEffect(() => {
+        return () => {
+            if (recognitionRef.current) {
+                try {
+                    recognitionRef.current.stop();
+                } catch (error) {
+                    // Ignore errors when stopping
+                }
+            }
+        };
+    }, []);
+
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!userInput.trim() || isLoading) return;
 
-        const userMessage: ChatMessage = { id: Date.now().toString(), author: MessageAuthor.USER, content: userInput };
+        const userMessage: ChatMessage = { id: generateUniqueId(), author: MessageAuthor.USER, content: userInput };
         const currentInput = userInput;
         setUserInput('');
         setIsLoading(true);
@@ -70,11 +88,11 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
                 const fastData: Omit<AiMessageData, 'keywords' | 'keywordsLoading'> = JSON.parse(jsonText);
 
                 // Step 2: Display the fast translation immediately
-                const aiMessageId = (Date.now() + 1).toString();
-                const initialAiMessage: ChatMessage = { 
-                    id: aiMessageId, 
-                    author: MessageAuthor.AI, 
-                    content: { ...fastData, keywords: [], keywordsLoading: true } 
+                const aiMessageId = generateUniqueId();
+                const initialAiMessage: ChatMessage = {
+                    id: aiMessageId,
+                    author: MessageAuthor.AI,
+                    content: { ...fastData, keywords: [], keywordsLoading: true }
                 };
                 onMessagesUpdate(prev => [...prev, initialAiMessage]);
                 setIsLoading(false); // Stop the main loading indicator
@@ -107,8 +125,8 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
                 
                 let fullResponseText = '';
                 const responseStream = await askSession.sendMessageStream({ message: currentInput });
-                
-                const aiMessageId = (Date.now() + 1).toString();
+
+                const aiMessageId = generateUniqueId();
                 const streamingAiMessage: ChatMessage = { id: aiMessageId, author: MessageAuthor.AI, content: '' };
                 onMessagesUpdate(prev => [...prev, streamingAiMessage]);
 
@@ -123,7 +141,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
 
         } catch (error) {
             console.error("Error processing message:", error);
-            const errorMessage: ChatMessage = { id: Date.now().toString(), author: MessageAuthor.AI, content: "Maaf, terjadi kesalahan. Pastikan format output dari model sesuai atau periksa koneksi Anda." };
+            const errorMessage: ChatMessage = { id: generateUniqueId(), author: MessageAuthor.AI, content: "Maaf, terjadi kesalahan. Pastikan format output dari model sesuai atau periksa koneksi Anda." };
             onMessagesUpdate(prev => [...prev, errorMessage]);
             setIsLoading(false);
         }
@@ -147,6 +165,94 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
         }
     };
 
+    const startRecording = () => {
+        // Check browser support for Web Speech API
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+            alert("Browser Anda tidak mendukung pengenalan suara. Silakan gunakan Chrome, Edge, atau Safari.");
+            return;
+        }
+
+        try {
+            const recognition = new SpeechRecognition();
+            recognitionRef.current = recognition;
+
+            // Configuration for Indonesian language
+            recognition.lang = 'id-ID';
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.maxAlternatives = 1;
+
+            let finalTranscript = '';
+
+            recognition.onstart = () => {
+                console.log('Speech recognition started');
+                setIsRecording(true);
+                finalTranscript = '';
+                setUserInput('');
+            };
+
+            recognition.onresult = (event: any) => {
+                let interimTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript + ' ';
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+
+                // Update input with both final and interim results
+                setUserInput((finalTranscript + interimTranscript).trim());
+            };
+
+            recognition.onerror = (event: any) => {
+                console.error('Speech recognition error:', event.error);
+
+                if (event.error === 'no-speech') {
+                    // Don't stop for no-speech, just continue
+                    return;
+                } else if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+                    alert('Akses mikrofon ditolak. Pastikan Anda telah memberikan izin.');
+                    setIsRecording(false);
+                } else if (event.error === 'network') {
+                    alert('Terjadi kesalahan jaringan. Periksa koneksi internet Anda.');
+                    setIsRecording(false);
+                } else {
+                    console.error('Speech recognition error:', event.error);
+                }
+            };
+
+            recognition.onend = () => {
+                console.log('Speech recognition ended');
+                setIsRecording(false);
+            };
+
+            // Start recognition
+            recognition.start();
+
+        } catch (error) {
+            console.error("Could not start speech recognition:", error);
+            alert("Tidak dapat memulai pengenalan suara. Pastikan Anda telah memberikan izin mikrofon.");
+            setIsRecording(false);
+        }
+    };
+
+    const stopRecording = () => {
+        if (recognitionRef.current) {
+            try {
+                recognitionRef.current.stop();
+                recognitionRef.current = null;
+            } catch (error) {
+                console.error("Error stopping speech recognition:", error);
+            }
+        }
+        setIsRecording(false);
+    };
+
     const renderInputForm = ({ maxWidthClass = 'max-w-4xl' }: { maxWidthClass?: string }) => (
         <div className={`${maxWidthClass} mx-auto w-full`}>
             {messages.length > 0 && (
@@ -168,7 +274,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
                 </div>
             )}
 
-            <form onSubmit={handleSendMessage} className="flex items-center gap-4 bg-slate-800 rounded-xl p-2 pl-5">
+            <form onSubmit={handleSendMessage} className="flex items-center gap-2 bg-slate-800 rounded-xl p-2 pl-5">
                 <input
                     ref={inputRef}
                     type="text"
@@ -176,11 +282,28 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
                     onChange={(e) => setUserInput(e.target.value)}
                     placeholder={chatMode === 'translate' ? 'Terjemahkan (respons cepat)...' : 'Tanyakan apa saja...'}
                     className="flex-1 bg-transparent focus:outline-none text-slate-200 placeholder:text-slate-500"
-                    disabled={isLoading}
+                    disabled={isLoading || isRecording}
                 />
                 <button
+                    type="button"
+                    onClick={isRecording ? stopRecording : startRecording}
+                    disabled={isLoading}
+                    className={`p-3 rounded-lg transition-colors ${
+                        isRecording
+                            ? 'bg-red-600 hover:bg-red-700 animate-pulse'
+                            : 'bg-slate-700 hover:bg-slate-600'
+                    } disabled:bg-slate-600 disabled:cursor-not-allowed`}
+                    aria-label={isRecording ? "Hentikan rekaman" : "Mulai rekaman suara"}
+                >
+                    {isRecording ? (
+                        <StopIcon className="w-6 h-6 text-white" />
+                    ) : (
+                        <MicrophoneIcon className="w-6 h-6 text-white" />
+                    )}
+                </button>
+                <button
                     type="submit"
-                    disabled={isLoading || !userInput.trim()}
+                    disabled={isLoading || !userInput.trim() || isRecording}
                     className="p-3 bg-sky-600 rounded-lg hover:bg-sky-700 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors"
                     aria-label="Kirim pesan"
                 >
@@ -280,9 +403,9 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
     return (
         <div className="h-full w-full flex flex-col">
             <div ref={chatHistoryRef} className="flex-1 p-6 space-y-6 overflow-y-auto custom-scrollbar">
-                {messages.map((msg) => (
+                {messages.map((msg, i) => (
                     <ChatMessageComponent
-                        key={msg.id}
+                        key={msg.id + i}
                         message={msg}
                         onBookmarkKeywords={onNewKeywords}
                     />

@@ -8,6 +8,7 @@ import KeywordsPage from './pages/KeywordsPage';
 // Fix: Import the missing ChatBubbleLeftRightIcon component.
 import { MenuIcon, PlusIcon, ChatBubbleLeftRightIcon } from './components/icons';
 import { initializeAI, getStoredApiKey } from './services/geminiService';
+import { generateUniqueId } from './utils/idGenerator';
 
 type View = 'chat' | 'keywords';
 
@@ -44,7 +45,7 @@ function App() {
 
   const handleNewChat = () => {
     const newChat: ChatSession = {
-        id: Date.now().toString(),
+        id: generateUniqueId(),
         title: 'Percakapan Baru',
         messages: [],
     };

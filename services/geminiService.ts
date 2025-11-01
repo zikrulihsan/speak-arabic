@@ -1,4 +1,4 @@
-import { GoogleGenAI, Chat, GenerateContentResponse, Modality, Type } from "@google/genai";
+import { GoogleGenAI, Chat, GenerateContentResponse, Modality, Type, LiveSession } from "@google/genai";
 import { getCachedAudio, setCachedAudio } from './audioCache';
 
 let ai: GoogleGenAI;
@@ -278,4 +278,37 @@ Dalam Nahwu, النَّوَافِذِ termasuk dalam kategori jam' taksir (plura
         console.error("Error explaining keyword detail:", error);
         return "Maaf, terjadi kesalahan saat mencoba mendapatkan penjelasan.";
     }
+}
+
+// --- Live Voice Transcription ---
+const liveAudioModel = 'gemini-2.5-flash-exp';
+
+export async function connectLive(callbacks: {
+    onopen?: () => void;
+    onmessage?: (message: any) => void;
+    onerror?: (error: any) => void;
+    onclose?: (event: any) => void;
+}): Promise<LiveSession> {
+    if (!ai) {
+        throw new Error("AI not initialized. Please provide an API key.");
+    }
+
+    // Create a live session for real-time audio transcription
+    const liveSession = await ai.live.connect({
+        model: liveAudioModel,
+        callbacks: {
+            onopen: () => {
+                console.log('Live session connected');
+                if (callbacks.onopen) callbacks.onopen();
+            },
+            onmessage: callbacks.onmessage,
+            onerror: callbacks.onerror,
+            onclose: callbacks.onclose,
+        },
+        config: {
+            systemInstruction: 'You are a helpful assistant that transcribes Indonesian speech accurately.',
+        },
+    });
+
+    return liveSession;
 }
