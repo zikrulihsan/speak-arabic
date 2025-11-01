@@ -5,7 +5,7 @@ import { startFastTranslationSession, extractKeywords, startGeneralChatSession, 
 import type { ChatMessage, ChatMode, SavedKeyword, AiMessageData } from '../types';
 import { MessageAuthor } from '../types';
 import ChatMessageComponent from '../components/ChatMessage';
-import { SendIcon, BotIcon } from '../components/icons';
+import { SendIcon, BotIcon, ExclamationTriangleIcon } from '../components/icons';
 
 interface ChatPageProps {
     messages: ChatMessage[];
@@ -187,6 +187,16 @@ const ChatPage: React.FC<ChatPageProps> = ({ messages, onMessagesUpdate, onNewKe
                     <SendIcon className="w-6 h-6 text-white" />
                 </button>
             </form>
+
+            <div className="mt-3 flex justify-center items-center gap-4 text-xs text-slate-500 leading-relaxed">
+                <ExclamationTriangleIcon className="w-4 h-4 flex-shrink-0 mt-0.5 text-gray-500" />
+                <div>
+                    <p className="text-center">
+                        Hasil jawaban bisa saja salah, aplikasi ini ditujukan untuk pendukung pembelajaran berbasis AI. 
+                        <br />Utamakan belajar dari guru langsung dan konfirmasi jawaban dari aplikasi ini kepada ahlinya, terutama yang berkaitan dengan agama.
+                    </p>
+                </div>
+            </div>
         </div>
     );
     

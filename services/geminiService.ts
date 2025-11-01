@@ -1,4 +1,5 @@
 import { GoogleGenAI, Chat, GenerateContentResponse, Modality, Type } from "@google/genai";
+import { getCachedAudio, setCachedAudio } from './audioCache';
 
 let ai: GoogleGenAI;
 let currentApiKey: string | null = process.env.API_KEY || null;
@@ -174,9 +175,17 @@ export function startGeneralChatSession(history?: any[]): Chat {
 // --- Layanan TTS ---
 export async function generateSpeech(text: string): Promise<string | null> {
     try {
+        // Check cache first
+        const cachedAudio = getCachedAudio(text);
+        if (cachedAudio) {
+            return cachedAudio;
+        }
+
         if (!ai) {
             throw new Error("AI not initialized. Please provide an API key.");
         }
+
+        // Generate new audio via API
         const response = await ai.models.generateContent({
             model: ttsModel,
             contents: [{ parts: [{ text }] }],
@@ -191,6 +200,12 @@ export async function generateSpeech(text: string): Promise<string | null> {
         });
 
         const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+
+        // Cache the generated audio
+        if (base64Audio) {
+            setCachedAudio(text, base64Audio);
+        }
+
         return base64Audio || null;
     } catch (error) {
         console.error("Error generating speech:", error);
