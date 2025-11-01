@@ -12,10 +12,10 @@ interface KeywordsPageProps {
 const KeywordsPage: React.FC<KeywordsPageProps> = ({ keywords, onClearKeywords }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredKeywords = keywords.filter(k => 
+  const filteredKeywords = keywords.filter(k =>
     k.indonesian.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    k.translation.arabic.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    k.translation.translit.toLowerCase().includes(searchTerm.toLowerCase())
+    k.arabic.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    k.translit.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (

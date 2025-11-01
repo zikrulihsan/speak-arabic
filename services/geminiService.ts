@@ -231,3 +231,51 @@ export async function explainGrammarConcept(concept: string, word: { arabic: str
         return "Maaf, terjadi kesalahan saat mencoba mendapatkan penjelasan.";
     }
 }
+
+// --- Penjelasan Detail Kata Kunci ---
+export async function explainKeywordDetail(indonesian: string, arabic: string, translit: string): Promise<string> {
+    const prompt = `Jelaskan kata Arab "${arabic}" (${translit}) yang artinya "${indonesian}" dalam Bahasa Indonesia.
+
+Berikan penjelasan yang mencakup:
+1. Jenis kata (kata benda/isim, kata kerja/fi'il, atau lainnya)
+2. Jika kata benda:
+   - Bentuk tunggal dan jamak (plural) dengan harakat lengkap dan transliterasi
+   - Jenis jamak (jam' mudzakkar salim, jam' muannats salim, atau jam' taksir)
+3. Jika kata kerja:
+   - Bentuk Madhi (lampau), Mudhari' (kini/akan), dan Amr (perintah) dengan harakat dan transliterasi
+   - Akar kata (fi'il tsulasi mujarrad)
+4. Kategori Nahwu/Sharaf yang relevan
+
+Format output dengan Markdown yang rapi. Gunakan format:
+- **Arabic:** dengan harakat lengkap
+- **Transliterasi:** dalam huruf latin
+- **Indonesian:** terjemahan
+
+Contoh output yang diharapkan:
+"Kata النَّوَافِذِ (an-nawāfidhi) adalah bentuk jamak (plural) dari kata jendela.
+
+Bentuk tunggalnya adalah:
+- **Arabic:** نَافِذَةٌ
+- **Transliterasi:** nāfidhah
+- **Indonesian:** jendela
+
+Jadi:
+- نَافِذَةٌ (nāfidhah) = satu jendela
+- النَّوَافِذِ (an-nawāfidhi) = jendela-jendela
+
+Dalam Nahwu, النَّوَافِذِ termasuk dalam kategori jam' taksir (plural tidak beraturan) dari نَافِذَةٌ."`;
+
+    try {
+        if (!ai) {
+            throw new Error("AI not initialized. Please provide an API key.");
+        }
+        const response = await ai.models.generateContent({
+            model: chatModel,
+            contents: [{ parts: [{ text: prompt }] }],
+        });
+        return response.text;
+    } catch (error) {
+        console.error("Error explaining keyword detail:", error);
+        return "Maaf, terjadi kesalahan saat mencoba mendapatkan penjelasan.";
+    }
+}

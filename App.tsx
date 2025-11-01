@@ -109,14 +109,17 @@ function App() {
   return (
     <div className="flex h-screen w-screen bg-slate-900 text-white font-sans">
       <div className="hidden lg:block lg:w-72 flex-shrink-0 border-r border-slate-700/50">
-        <Sidebar 
-          onClose={() => {}} 
+        <Sidebar
+          onClose={() => {}}
           currentView={currentView}
           onNavigate={handleNavigate}
           chatHistory={chatHistory}
           activeChatId={activeChatId}
           onNewChat={handleNewChat}
           onSelectChat={handleSelectChat}
+          apiKey={effectiveApiKey}
+          onApiKeyChange={setApiKey}
+          isUsingEnvKey={isUsingEnvKey}
         />
       </div>
       
@@ -125,7 +128,7 @@ function App() {
       >
         <div className="absolute inset-0 bg-black/60" onClick={() => setIsSidebarOpen(false)}></div>
         <div className="relative w-[90%] max-w-xs h-full">
-            <Sidebar 
+            <Sidebar
               onClose={() => setIsSidebarOpen(false)}
               currentView={currentView}
               onNavigate={handleNavigate}
@@ -133,6 +136,9 @@ function App() {
               activeChatId={activeChatId}
               onNewChat={handleNewChat}
               onSelectChat={handleSelectChat}
+              apiKey={effectiveApiKey}
+              onApiKeyChange={setApiKey}
+              isUsingEnvKey={isUsingEnvKey}
             />
         </div>
       </div>

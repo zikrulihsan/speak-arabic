@@ -11,10 +11,17 @@ export interface ArabicWithTranslit {
   translit: string;
 }
 
+// Simplified keyword structure - only stores minimal data
 export interface SavedKeyword {
   indonesian: string;
+  arabic: string;
+  translit: string;
+}
+
+// Full keyword structure with detailed analysis (for runtime use only, not stored)
+export interface DetailedKeyword {
+  indonesian: string;
   translation: ArabicWithTranslit;
-  // Fix: Use an escaped single quote for "fi'il" to create a valid string literal type.
   type: 'fi\'il' | 'isim' | 'lainnya';
   root?: ArabicWithTranslit;
   verbForms?: {
@@ -37,7 +44,7 @@ export interface AiMessageData {
     translit: string;
     indonesian: string;
   }[];
-  keywords?: SavedKeyword[];
+  keywords?: DetailedKeyword[];
   keywordsLoading?: boolean;
 }
 

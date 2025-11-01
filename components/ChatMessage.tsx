@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { marked } from 'marked';
-import { ChatMessage, MessageAuthor, AiMessageData, SavedKeyword, ArabicWithTranslit } from '../types';
+import { ChatMessage, MessageAuthor, AiMessageData, SavedKeyword, DetailedKeyword, ArabicWithTranslit } from '../types';
 import { UserIcon, BotIcon, BookmarkIcon, SpeakerIcon, LightBulbIcon } from './icons';
 import { generateSpeech, explainGrammarConcept } from '../services/geminiService';
 import { decode, decodeAudioData } from '../utils/audioUtils';
@@ -17,15 +17,21 @@ const ChatMessageComponent: React.FC<ChatMessageProps> = ({ message, onBookmarkK
 
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [ttsState, setTtsState] = useState<'idle' | 'loading' | 'playing' | 'error'>('idle');
-  
+
   // State for inline explanations
   const [activeExplanation, setActiveExplanation] = useState<number | null>(null);
   const [explanationLoading, setExplanationLoading] = useState<boolean>(false);
   const [explanationContent, setExplanationContent] = useState<string | null>(null);
 
-  const handleBookmark = (keywords: SavedKeyword[]) => {
+  const handleBookmark = (detailedKeywords: DetailedKeyword[]) => {
     if (onBookmarkKeywords) {
-      onBookmarkKeywords(keywords);
+      // Convert DetailedKeyword to SavedKeyword (minimal data only)
+      const minimalKeywords: SavedKeyword[] = detailedKeywords.map(kw => ({
+        indonesian: kw.indonesian,
+        arabic: kw.translation.arabic,
+        translit: kw.translation.translit,
+      }));
+      onBookmarkKeywords(minimalKeywords);
       setIsBookmarked(true);
     }
   };
